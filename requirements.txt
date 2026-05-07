@@ -1,0 +1,3 @@
+Pillow
+rembg[cpu]
+tkinterdnd2
