@@ -39,3 +39,7 @@ Si quelque chose plante, lance `Image_to_ICO_DEBUG.bat` : la console reste ouver
 ---
 
 By Mel & Ada ♡
+
+---
+
+*Originally created: 2026-05-07*
