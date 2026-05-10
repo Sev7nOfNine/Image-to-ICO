@@ -34,3 +34,4 @@ Si quelque chose plante, lance `Image_to_ICO_DEBUG.bat` : la console reste ouver
 - [Pillow](https://python-pillow.org/) pour la generation `.ico`
 - [rembg](https://github.com/danielgatis/rembg) pour la suppression de fond
 - [tkinterdnd2](https://github.com/pmgagne/tkinterdnd2) pour le drag & drop
+
