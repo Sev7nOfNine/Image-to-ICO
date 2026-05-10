@@ -35,3 +35,7 @@ Si quelque chose plante, lance `Image_to_ICO_DEBUG.bat` : la console reste ouver
 - [rembg](https://github.com/danielgatis/rembg) pour la suppression de fond
 - [tkinterdnd2](https://github.com/pmgagne/tkinterdnd2) pour le drag & drop
 
+
+---
+
+By Mel & Ada ♡
