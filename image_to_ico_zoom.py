@@ -1,8 +1,9 @@
 """Mini app Tkinter pour convertir une image en .ico - VERSION ZOOM
 - Drag & drop ou clic pour selectionner
-- Retire le fond avec rembg
+- Option : retirer le fond avec rembg, ou le conserver
 - Crop auto sur le sujet (bbox alpha) puis pad en carre avec marge 5%
   -> le sujet remplit le canvas, ideal pour barre des taches
+- Si fond conserve : le crop ne s'applique que si l'image source a deja une transparence
 - Genere un .ico multi-tailles a cote du fichier source (suffixe _zoom)
 """
 
@@ -16,7 +17,7 @@ if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w")
-from tkinter import Tk, Label, Button, filedialog, StringVar
+from tkinter import Tk, Label, Button, filedialog, StringVar, BooleanVar, Checkbutton
 from tkinter import ttk
 
 from PIL import Image
@@ -27,7 +28,9 @@ MARGIN_RATIO = 0.05  # 5% de marge autour du sujet
 
 
 def crop_to_subject(img: Image.Image) -> Image.Image:
-    """Crop sur la bbox de l'alpha pour virer la zone transparente autour du sujet."""
+    """Crop sur la bbox de l'alpha pour virer la zone transparente autour du sujet.
+    Si l'image est entierement opaque (pas de transparence), retourne l'image inchangee.
+    """
     if img.mode != "RGBA":
         img = img.convert("RGBA")
     alpha = img.split()[-1]
@@ -47,10 +50,8 @@ def pad_to_square_with_margin(img: Image.Image, margin_ratio: float = MARGIN_RAT
     return canvas
 
 
-def convert(path: str, status_var: StringVar, progress: ttk.Progressbar):
+def convert(path: str, status_var: StringVar, progress: ttk.Progressbar, keep_bg: bool):
     try:
-        from rembg import remove
-
         src = Path(path)
         if not src.is_file():
             status_var.set(f"[X] Fichier introuvable : {src.name}")
@@ -62,13 +63,17 @@ def convert(path: str, status_var: StringVar, progress: ttk.Progressbar):
         with open(src, "rb") as f:
             input_bytes = f.read()
 
-        status_var.set("[...] Suppression du fond (peut prendre quelques secondes)")
-        output_bytes = remove(input_bytes)
+        from io import BytesIO
+        if keep_bg:
+            status_var.set("[...] Chargement (fond conserve)")
+            img = Image.open(BytesIO(input_bytes)).convert("RGBA")
+        else:
+            status_var.set("[...] Suppression du fond (peut prendre quelques secondes)")
+            from rembg import remove
+            output_bytes = remove(input_bytes)
+            img = Image.open(BytesIO(output_bytes)).convert("RGBA")
 
         status_var.set("[...] Crop sur le sujet et generation du .ico")
-        from io import BytesIO
-        img = Image.open(BytesIO(output_bytes)).convert("RGBA")
-
         cropped = crop_to_subject(img)
         squared = pad_to_square_with_margin(cropped)
 
@@ -82,7 +87,7 @@ def convert(path: str, status_var: StringVar, progress: ttk.Progressbar):
         status_var.set(f"[X] Erreur : {e}")
 
 
-def on_drop(event, status_var, progress):
+def on_drop(event, status_var, progress, keep_bg_var):
     raw = event.data.strip()
     if raw.startswith("{") and raw.endswith("}"):
         raw = raw[1:-1]
@@ -91,18 +96,18 @@ def on_drop(event, status_var, progress):
         return
     threading.Thread(
         target=process_batch,
-        args=(paths, status_var, progress),
+        args=(paths, status_var, progress, keep_bg_var.get()),
         daemon=True,
     ).start()
 
 
-def process_batch(paths, status_var, progress):
+def process_batch(paths, status_var, progress, keep_bg):
     for i, p in enumerate(paths, 1):
         status_var.set(f"[{i}/{len(paths)}] Traitement...")
-        convert(p, status_var, progress)
+        convert(p, status_var, progress, keep_bg)
 
 
-def on_click(status_var, progress):
+def on_click(status_var, progress, keep_bg_var):
     paths = filedialog.askopenfilenames(
         title="Choisir une ou plusieurs images",
         filetypes=[
@@ -114,7 +119,7 @@ def on_click(status_var, progress):
         return
     threading.Thread(
         target=process_batch,
-        args=(list(paths), status_var, progress),
+        args=(list(paths), status_var, progress, keep_bg_var.get()),
         daemon=True,
     ).start()
 
@@ -122,7 +127,7 @@ def on_click(status_var, progress):
 def main():
     root = TkinterDnD.Tk()
     root.title("Image -> ICO (Zoom)")
-    root.geometry("480x280")
+    root.geometry("480x320")
     root.configure(bg="#1e1e2e")
 
     title = Label(
@@ -147,6 +152,20 @@ def main():
     )
     drop_zone.pack(padx=20, pady=10, fill="x")
 
+    keep_bg_var = BooleanVar(value=False)
+    keep_bg_check = Checkbutton(
+        root,
+        text="Garder le fond (ne pas appeler rembg)",
+        variable=keep_bg_var,
+        bg="#1e1e2e",
+        fg="#f9e2af",
+        selectcolor="#313244",
+        activebackground="#1e1e2e",
+        activeforeground="#f9e2af",
+        font=("Segoe UI", 9),
+    )
+    keep_bg_check.pack(pady=(0, 4))
+
     status_var = StringVar(value="Pret. Sortie suffixee _zoom.ico")
     status = Label(
         root,
@@ -162,8 +181,8 @@ def main():
     progress.pack(pady=(0, 10))
 
     drop_zone.drop_target_register(DND_FILES)
-    drop_zone.dnd_bind("<<Drop>>", lambda e: on_drop(e, status_var, progress))
-    drop_zone.bind("<Button-1>", lambda e: on_click(status_var, progress))
+    drop_zone.dnd_bind("<<Drop>>", lambda e: on_drop(e, status_var, progress, keep_bg_var))
+    drop_zone.bind("<Button-1>", lambda e: on_click(status_var, progress, keep_bg_var))
 
     root.mainloop()
 
